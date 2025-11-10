@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oliver IP Theft Investigation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 
+    Chosen Palette: Calm Harmony (bg-slate-50, bg-white, text-gray-800, text-blue-700, with green-600/red-600 for status)
+    Application Structure Plan: I've designed a tabbed dashboard structure (Overview, Timeline, Root Cause Analysis, Recommendations) rather than mirroring the report's linear layout. This allows a user (like an executive or legal team member) to immediately navigate to their area of interest—be it the high-level summary, the "how-it-happened" story (RCA), or the "what-to-do-now" (Recommendations). The core interaction is this tabbed navigation, with secondary interactions within the "Timeline" (an interactive stepper) and "RCA" (clickable cause-elimination cards) sections. This non-linear, thematic structure makes the complex findings far more digestible and user-friendly.
+    Visualization & Content Choices:
+    - Report Info: 5-Step Investigation Process -> Goal: Show methodical process -> Viz: Interactive Stepper/Timeline (HTML/CSS/JS) -> Interaction: Click step to show details -> Justification: Breaks a dense list into digestible, user-gated chunks.
+    - Report Info: 3 Potential Causes (RCA) -> Goal: Show process of elimination -> Viz: 3-Card Interactive Layout (HTML/JS) + Donut Chart (Chart.js) -> Interaction: Click card to reveal analysis (Eliminated/Confirmed) -> Justification: Visually represents the investigation's focus and the "story" of the analysis. The chart illustrates the investigative effort.
+    - Report Info: RCA "Smoking Gun" (Shared IP) -> Goal: Show the key evidence -> Viz: HTML/CSS Diagram -> Interaction: None (static visual) -> Justification: A visual diagram is far more impactful for showing the attacker's OPSEC error than text.
+    - Report Info: Recommendations -> Goal: Inform of actionable solutions -> Viz: 2-Column list with icons (HTML/Unicode) -> Interaction: None -> Justification: Clear, scannable, and actionable.
+    - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button.active {
+            background-color: #1d4ed8;
+            color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .nav-button:not(.active):hover {
+            background-color: #e0e7ff;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .timeline-step {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .timeline-step.active {
+            border-color: #1d4ed8;
+            background-color: #eff6ff;
+        }
+        .timeline-step-content {
+            display: none;
+        }
+        .timeline-step-content.active {
+            display: block;
+        }
+        .cause-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-width: 2px;
+        }
+        .cause-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .cause-card.active {
+            border-color: #1d4ed8;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .cause-content {
+            display: none;
+        }
+        .cause-content.active {
+            display: block;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 300px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-900">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        
+        <header class="mb-8 p-6 bg-white rounded-lg shadow-md">
+            <h1 class="text-3xl font-bold text-blue-700">Brendan Oliver IP Theft Investigation</h1>
+            <p class="mt-1 text-lg text-gray-600">Case ID: R-2025-018</p>
+        </header>
+
+        <nav class="flex flex-wrap gap-2 mb-8">
+            <button id="nav-overview" class="nav-button active text-sm md:text-base font-medium py-2 px-4 rounded-lg bg-white shadow-sm" onclick="showSection('overview')">
+                Case Overview
+            </button>
+            <button id="nav-timeline" class="nav-button text-sm md:text-base font-medium py-2 px-4 rounded-lg bg-white shadow-sm" onclick="showSection('timeline')">
+                Investigation Timeline
+            </button>
+            <button id="nav-rca" class="nav-button text-sm md:text-base font-medium py-2 px-4 rounded-lg bg-white shadow-sm" onclick="showSection('rca')">
+                Root Cause Analysis
+            </button>
+            <button id="nav-recommendations" class="nav-button text-sm md:text-base font-medium py-2 px-4 rounded-lg bg-white shadow-sm" onclick="showSection('recommendations')">
+                Recommendations
+            </button>
+        </nav>
+
+        <main>
+            <section id="overview" class="content-section active p-6 bg-white rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-blue-700 mb-4">Case Overview</h2>
+                <p class="mb-6 text-gray-700">This dashboard summarizes the formal digital forensic investigation into the intellectual property (IP) theft against Mr. Brendan Oliver. The investigation's goal was to identify the method of the breach, find the responsible party, and provide clear recommendations to prevent future incidents. This interactive report allows you to explore the investigation's process, the "whodunnit" analysis, and the final solutions.</p>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-200">
+                        <h3 class="text-lg font-semibold text-blue-800 mb-2">The Incident</h3>
+                        <p class="text-gray-700">A data breach was confirmed. Sensitive intellectual property, "Project Titan," was stolen and an attempt was made to sell it to media outlets.</p>
+                    </div>
+                    <div class="bg-green-50 p-6 rounded-lg border border-green-200">
+                        <h3 class="text-lg font-semibold text-green-800 mb-2">The Root Cause (Answer-First)</h3>
+                        <p class="text-gray-700">The breach was a **Third-Party Compromise**. An attacker used stolen credentials from a 2019 data breach to access the email account of Mr. Oliver's associate, Alex Chen, and found the IP that Mr. Oliver had emailed months prior.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="timeline" class="content-section p-6 bg-white rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-blue-700 mb-6">Investigation Timeline</h2>
+                <p class="mb-6 text-gray-700">Our team followed a standard 5-step forensic process. Click each step to see the specific activities and their rationale. This methodical process ensures that all evidence is collected, preserved, and analyzed in a manner that is admissible in court.</p>
+                
+                <div class="flex flex-col md:flex-row md:justify-between gap-2 mb-6">
+                    <div id="step-1" class="timeline-step active flex-1 p-4 border-2 border-transparent rounded-lg text-center bg-slate-50" onclick="showStep(1)">
+                        <span class="text-sm font-semibold text-gray-500">Step 1</span>
+                        <h3 class="font-bold text-blue-700">Scoping</h3>
+                    </div>
+                    <div id="step-2" class="timeline-step flex-1 p-4 border-2 border-transparent rounded-lg text-center bg-slate-50" onclick="showStep(2)">
+                        <span class="text-sm font-semibold text-gray-500">Step 2</span>
+                        <h3 class="font-bold text-blue-700">Gathering</h3>
+                    </div>
+                    <div id="step-3" class="timeline-step flex-1 p-4 border-2 border-transparent rounded-lg text-center bg-slate-50" onclick="showStep(3)">
+                        <span class="text-sm font-semibold text-gray-500">Step 3</span>
+                        <h3 class="font-bold text-blue-700">Preservation</h3>
+                    </div>
+                    <div id="step-4" class="timeline-step flex-1 p-4 border-2 border-transparent rounded-lg text-center bg-slate-50" onclick="showStep(4)">
+                        <span class="text-sm font-semibold text-gray-500">Step 4</span>
+                        <h3 class="font-bold text-blue-700">Analysis</h3>
+                    </div>
+                    <div id="step-5" class="timeline-step flex-1 p-4 border-2 border-transparent rounded-lg text-center bg-slate-50" onclick="showStep(5)">
+                        <span class="text-sm font-semibold text-gray-500">Step 5</span>
+                        <h3 class="font-bold text-blue-700">Legal</h3>
+                    </div>
+                </div>
+
+                <div id="content-1" class="timeline-step-content active p-4 bg-slate-50 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Step 1: Formal Scoping and Authorization</h4>
+                    <p class="font-medium text-gray-700">Activity:</p>
+                    <ul class="list-disc list-inside text-gray-600 mb-2">
+                        <li>Executed a formal contract and rules of engagement with the legal team.</li>
+                        <li>Obtained signed consent forms from Mr. Oliver for his devices.</li>
+                        <li>Obtained limited-scope consent from the third-party, "Alex Chen," for his email account.</li>
+                    </ul>
+                    <p class="font-medium text-gray-700">Rationale:</p>
+                    <p class="text-gray-600">To establish clear legal authority to conduct the investigation and ensure all evidence is admissible.</p>
+                </div>
+
+                <div id="content-2" class="timeline-step-content p-4 bg-slate-50 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Step 2: Evidence Gathering (Acquisition)</h4>
+                    <p class="font-medium text-gray-700">Activity:</p>
+                    <ul class="list-disc list-inside text-gray-600 mb-2">
+                        <li>Acquired Mr. Oliver's personal laptop (MacBook Pro) and home router (ASUS).</li>
+                        <li>Acquired server-side email logs from Alex Chen’s G-Suite account.</li>
+                        <li>Obtained original "seller" communications (email headers) from the PR team.</li>
+                        <li>Served a legal subpoena to the attacker's ISP for IP login history.</li>
+                    </ul>
+                    <p class="font-medium text-gray-700">Rationale:</p>
+                    <p class="text-gray-600">To collect all relevant data from the primary sources, the victim, and third-party providers to build a complete picture of the incident.</p>
+
+                </div>
+
+                <div id="content-3" class="timeline-step-content p-4 bg-slate-50 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Step 3: Preservation and Chain of Custody</h4>
+                    <p class="font-medium text-gray-700">Activity:</p>
+                    <ul class="list-disc list-inside text-gray-600 mb-2">
+                        <li>Created bit-for-bit, verified forensic images (E01 format) of all physical devices.</li>
+                        <li>Hashed (SHA-256) all collected digital logs and stored them on a secure server.</li>
+                        <li>Maintained a complete Chain of Custody log for all items.</li>
+                    </ul>
+                    <p class="font-medium text-gray-700">Rationale:</p>
+                    <p class="text-gray-600">To maintain the forensic integrity of the original evidence and ensure its admissibility in court (NIST, 2006; Fed. R. Evid. 901).</p>
+                </div>
+
+                <div id="content-4" class="timeline-step-content p-4 bg-slate-50 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Step 4: Analysis and Root Cause Analysis</h4>
+                    <p class="font-medium text-gray-700">Activity:</p>
+                    <ul class="list-disc list-inside text-gray-600 mb-2">
+                        <li>Performed a comprehensive analysis of all collected evidence to find the root cause.</li>
+                    </ul>
+                    <p class="font-medium text-gray-700">Rationale:</p>
+                    <p class="text-gray-600">To correlate data from all sources (laptop, router, email logs, ISP logs) to reconstruct the incident.</p>
+                </div>
+
+                <div id="content-5" class="timeline-step-content p-4 bg-slate-50 rounded-lg">
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Step 5: Completion of Legal Proceedings</h4>
+                    <p class="font-medium text-gray-700">Activity:</p>
+                    <ul class="list-disc list-inside text-gray-600 mb-2">
+                        <li>Compiled this formal report with all technical findings and data trails.</li>
+                        <li>Delivered the report to the legal team and law enforcement.</li>
+                        <li>Prepared to serve as expert witnesses to explain the technical evidence in court.</li>
+                    </ul>
+                    <p class="font-medium text-gray-700">Rationale:</p>
+                    <p class="text-gray-600">To provide a clear, factual, and admissible summary of the investigation's findings.</p>
+                </div>
+            </section>
+
+            <section id="rca" class="content-section p-6 bg-white rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-blue-700 mb-4">Root Cause Analysis</h2>
+                <p class="mb-6 text-gray-700">The core of the investigation was a Root Cause Analysis (RCA) to determine exactly how the breach occurred. We analyzed three potential causes. Click on each cause to see the analysis and its outcome. The chart illustrates the investigative effort, showing where our analysis focused.</p>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="flex flex-col justify-center">
+                        <div class="grid grid-cols-1 gap-4">
+                            <div id="cause-A" class="cause-card active border-gray-200 p-4 rounded-lg" onclick="showCause('A')">
+                                <h3 class="text-lg font-bold text-gray-800">Cause A: Insider Threat</h3>
+                                <p class="text-sm text-gray-500">Access from a friend, family member, or employee.</p>
+                            </div>
+                            <div id="cause-B" class="cause-card border-gray-200 p-4 rounded-lg" onclick="showCause('B')">
+                                <h3 class="text-lg font-bold text-gray-800">Cause B: Direct Cyber-Attack</h3>
+                                <p class="text-sm text-gray-500">Phishing or malware on Mr. Oliver's laptop.</p>
+                            </div>
+                            <div id="cause-C" class="cause-card border-gray-200 p-4 rounded-lg" onclick="showCause('C')">
+                                <h3 class="text-lg font-bold text-gray-800">Cause C: Third-Party Compromise</h3>
+                                <p class="text-sm text-gray-500">Breach via the email recipient, Alex Chen.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="rcaChart"></canvas>
+                    </div>
+                </div>
+
+                <div id="cause-content-A" class="cause-content active mt-6 p-4 bg-slate-50 rounded-lg">
+                    <h3 class="text-xl font-bold text-red-600 mb-2">Status: ELIMINATED</h3>
+                    <p class="font-medium text-gray-700">Analysis:</p>
+                    <p class="text-gray-600">A review of the laptop's unified logs and file system metadata (APFS) showed no unauthorized local logins or access to the IP files that correlated with the breach timeline.</p>
+                </div>
+
+                <div id="cause-content-B" class="cause-content mt-6 p-4 bg-slate-50 rounded-lg">
+                    <h3 class="text-xl font-bold text-red-600 mb-2">Status: ELIMINATED</h3>
+                    <p class="font-medium text-gray-700">Analysis:</p>
+                    <p class="text-gray-600">A full analysis of the laptop's forensic image (using tools like Autopsy and Volatility) found no evidence of malware, Remote Access Trojans (RATs), or suspicious processes. Router logs showed no unusual outbound data exfiltration.</p>
+                </div>
+
+                <div id="cause-content-C" class="cause-content mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h3 class="text-xl font-bold text-green-700 mb-2">Status: CONFIRMED ROOT CAUSE</h3>
+                    <p class="font-medium text-gray-700 mb-4">Analysis:</p>
+                    <p class="text-gray-600 mb-4">The attacker used a **credential-stuffing attack** to gain unauthorized access to Alex Chen's email account, using credentials stolen from a previous, unrelated data breach. The attacker then searched his email, found the sensitive IP, and downloaded it.</p>
+                    
+                    <h4 class="text-lg font-semibold text-gray-800 mb-3">Key Findings (The "Smoking Gun")</h4>
+                    
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-inner">
+                            <h5 class="font-bold text-blue-700 mb-2">Finding 1: The Breach</h5>
+                            <p class="text-gray-700">Alex Chen’s G-Suite logs revealed successful logins from an IP address in **Romania** (`91.102.14.82`).</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-inner">
+                            <h5 class="font-bold text-blue-700 mb-2">Finding 2: The Method</h5>
+                            <p class="text-gray-700">Mr. Chen's email was found in a 2019 "Finance App" data breach, exposing his password.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-inner mt-4">
+                        <h5 class="font-bold text-blue-700 mb-4 text-center">Finding 3: The Link (Attacker OPSEC Error)</h5>
+                        <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-center">
+                            <div class="p-4 bg-slate-100 rounded-lg shadow-sm">
+                                <p class="font-semibold">Alex Chen's Email</p>
+                                <p class="text-sm text-gray-600">`alex.chen@startup.com`</p>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl md:text-4xl">&rarr;</div>
+                            <div class="p-4 bg-red-100 border border-red-300 rounded-lg shadow-sm">
+                                <p class="font-semibold text-red-700">Attacker IP</p>
+                                <p class="text-sm text-gray-600 font-mono">`91.102.14.82`</p>
+                                <p class="text-xs text-gray-500">(Romania)</p>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl md:text-4xl">&larr;</div>
+                            <div class="p-4 bg-slate-100 rounded-lg shadow-sm">
+                                <p class="font-semibold">Attacker's Email</p>
+                                <p class="text-sm text-gray-600">`silicon.seller@proton.me`</p>
+                            </div>
+                        </div>
+                        <p class="text-center text-gray-600 mt-4">The attacker used the **exact same IP address** to access both the victim's account and their own anonymous email, creating a direct, verifiable link.</p>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <section id="recommendations" class="content-section p-6 bg-white rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-blue-700 mb-4">Recommendations</h2>
+                <p class="mb-6 text-gray-700">The root cause was a failure in basic security hygiene by a trusted third party. To prevent future incidents, we recommend the following solutions.</p>
+                <div class="grid md:grid-cols-2 gap-6">
+                    
+                    <div class="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
+                        <h3 class="text-xl font-bold text-yellow-800 mb-4 flex items-center">
+                            <span class="text-2xl mr-3">&#9888;</span> Immediate Solutions
+                        </h3>
+                        <ul class="list-disc list-outside ml-5 space-y-2 text-gray-700">
+                            <li>
+                                **Enable Multi-Factor Authentication (MFA):** Both Mr. Oliver and Mr. Chen have enabled MFA on all accounts.
+                            </li>
+                            <li>
+                                **Change All Passwords:** All critical account passwords have been changed.
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-green-50 p-6 rounded-lg border border-green-200">
+                        <h3 class="text-xl font-bold text-green-800 mb-4 flex items-center">
+                            <span class="text-2xl mr-3">&#128737;</span> Long-Term Solutions
+                        </h3>
+                        <ul class="list-disc list-outside ml-5 space-y-2 text-gray-700">
+                            <li>
+                                **Stop Using Email for IP Transfer:** Adopt a secure, zero-trust file-sharing platform that requires MFA and uses end-to-end encryption.
+                            </li>
+                            <li>
+                                **Vet Third-Party Security:** The legal team must now vet the security practices (e.g., mandatory MFA) of any partner before sharing sensitive IP.
+                            </li>
+                            <li>
+                                **Offer Security Audits:** Rize Investigations has offered to provide this "third-party security audit" service to secure the supply chain.
+                            </li>
+                        </ul>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+
+            const navButtons = document.querySelectorAll('.nav-button');
+            navButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+            document.getElementById('nav-' + sectionId).classList.add('active');
+        }
+
+        function showStep(stepNum) {
+            const contents = document.querySelectorAll('.timeline-step-content');
+            contents.forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById('content-' + stepNum).classList.add('active');
+
+            const steps = document.querySelectorAll('.timeline-step');
+            steps.forEach(step => {
+                step.classList.remove('active');
+            });
+            document.getElementById('step-' + stepNum).classList.add('active');
+        }
+
+        function showCause(causeLetter) {
+            const contents = document.querySelectorAll('.cause-content');
+            contents.forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById('cause-content-' + causeLetter).classList.add('active');
+
+            const cards = document.querySelectorAll('.cause-card');
+            cards.forEach(card => {
+                card.classList.remove('active');
+            });
+            document.getElementById('cause-' + causeLetter).classList.add('active');
+        }
+
+        function wrapText(text, maxLen) {
+            const words = text.split(' ');
+            let lines = [];
+            let currentLine = '';
+            words.forEach(word => {
+                if ((currentLine + word).length > maxLen) {
+                    lines.push(currentLine.trim());
+                    currentLine = word + ' ';
+                } else {
+                    currentLine += word + ' ';
+                }
+            });
+            lines.push(currentLine.trim());
+            return lines;
+        }
+
+        window.onload = function() {
+            const ctx = document.getElementById('rcaChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        'Third-Party Compromise (Cause C)', 
+                        'Insider Threat (Cause A)', 
+                        'Direct Attack (Cause B)'
+                    ],
+                    datasets: [{
+                        label: 'Investigative Focus',
+                        data: [80, 10, 10],
+                        backgroundColor: [
+                            '#16a34a',
+                            '#dc2626',
+                            '#6b7280'
+                        ],
+                        borderColor: '#f8fafc',
+                        borderWidth: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 20,
+                                padding: 20,
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const meta = chart.getDatasetMeta(0);
+                                            const style = meta.controller.getStyle(i);
+                                            return {
+                                                text: label,
+                                                fillStyle: style.backgroundColor,
+                                                strokeStyle: style.borderColor,
+                                                lineWidth: style.borderWidth,
+                                                hidden: !chart.getDataVisibility(i),
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label = wrapText(label, 16).join(', ');
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += ': ' + context.parsed + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            showSection('overview');
+        };
+    </script>
+
+</body>
+</html>
